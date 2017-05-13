@@ -18,6 +18,7 @@ data AST = Assign Name Expr
          | For Name Expr Expr Expr [AST]
          | If BoolExpr [AST] [AST]
          | While BoolExpr [AST]
+         | Break
          | Return Expr
          | AExp Expr
          | BExp BoolExpr

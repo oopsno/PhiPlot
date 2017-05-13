@@ -79,24 +79,21 @@ contents p = do
   eof
   return r
 
+
 -- Statements
 stmt :: Parser AST
-stmt = do
-  v <-  try cond
+stmt =  try cond
     <|> try for
     <|> try while
     <|> try assign
     <|> try bstmt
     <|> try astmt
+    <|> try semi
     <|> try ret_stmt
-  optional $ reservedOp ";"
-  return v
+    <|> try break_stmt
 
 block :: Parser [AST]
-block = try (braces $ many stmt) <|> try singleStmt
-  where singleStmt = do
-          s <- stmt
-          return [s]
+block = choice [braces $ many stmt, return <$> stmt ]
 
 astmt :: Parser AST
 astmt = aexpr >>= return . AExp
@@ -132,6 +129,12 @@ for = reserved "for" >> liftM5 For identifier start stop step block
 
 while :: Parser AST
 while = reserved "while" >> liftM2 While bexpr block
+
+semi :: Parser AST
+semi = reservedOp ";" >> return Void
+
+break_stmt :: Parser AST
+break_stmt = reserved "break" >> return Break
 
 -- The full parser
 

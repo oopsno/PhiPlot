@@ -56,7 +56,8 @@ library
   exposed-modules:     Language.PhiPlot,
                        Language.PhiPlot.Lexer,
                        Language.PhiPlot.AST,
-                       Language.PhiPlot.Parser
+                       Language.PhiPlot.Parser,
+                       Language.PhiPlot.Desugar
   default-language:    Haskell2010
 
 
