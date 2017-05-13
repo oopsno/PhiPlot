@@ -48,10 +48,21 @@ extra-source-files:  ChangeLog.md, README.md
 -- Constraint on the version of Cabal needed to build this package.
 cabal-version:       >=1.10
 
+library
+  build-depends:       base          >= 4.9 && < 4.10,
+                       parsec        >= 3.1 && < 3.2,
+                       GenericPretty >= 1.2 && < 1.3
+  hs-source-dirs:      phiplot
+  exposed-modules:     Language.PhiPlot,
+                       Language.PhiPlot.Lexer,
+                       Language.PhiPlot.AST,
+                       Language.PhiPlot.Parser
+  default-language:    Haskell2010
+
 
 executable PhiPlot
   -- .hs or .lhs file containing the Main module.
-  main-is:             Main.hs
+  main-is:             phiplot/Main.hs
   
   -- Modules included in this executable, other than Main.
   -- other-modules:       
@@ -62,10 +73,8 @@ executable PhiPlot
   -- Other library packages from which modules are imported.
   build-depends:       base          >= 4.9 && < 4.10,
                        parsec        >= 3.1 && < 3.2,
-                       GenericPretty >= 1.2 && < 1.3
-  
-  -- Directories containing source files.
-  hs-source-dirs:      phiplot
+                       GenericPretty >= 1.2 && < 1.3,
+                       PhiPlot
   
   -- Base language which the package is written in.
   default-language:    Haskell2010
