@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 module Language.PhiPlot.AST ( AST(..),
                               Expr(..),
@@ -23,7 +24,7 @@ data AST = Assign Name Expr
          | AExp Expr
          | BExp BoolExpr
          | Void
-         deriving (Eq, Show, Generic)
+         deriving (Eq, Show, Generic, Out)
 
 data Expr = Var Name
           | Number Double
@@ -31,7 +32,7 @@ data Expr = Var Name
           | BinOp Op Expr Expr
           | Call Name [Expr]
           | Fcall Name [Expr]
-          deriving (Eq, Show, Generic)
+          deriving (Eq, Show, Generic, Out)
 
 data BoolExpr = BoolVal Bool
               | Cmp Op BoolExpr BoolExpr
@@ -39,18 +40,12 @@ data BoolExpr = BoolVal Bool
               | Not BoolExpr
               | Nonzero Expr
               | BEAtom Expr
-              deriving (Eq, Show, Generic)
+              deriving (Eq, Show, Generic, Out)
 
 data Op = Plus | Minus
         | Mul  | Div
         | LT | GT | LE | GE | EQ | NE 
         | AND | OR
-        deriving (Eq, Show, Generic)
+        deriving (Eq, Show, Generic, Out)
 
-data UniOp = Negative | Positive | NOT deriving (Eq, Show, Generic)
-
-instance Out AST
-instance Out Expr
-instance Out BoolExpr
-instance Out UniOp
-instance Out Op
+data UniOp = Negative | Positive | NOT deriving (Eq, Show, Generic, Out)
