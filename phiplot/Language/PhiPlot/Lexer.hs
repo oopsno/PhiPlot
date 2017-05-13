@@ -7,8 +7,10 @@ import Text.Parsec.Language (emptyDef)
 
 import qualified Text.Parsec.Token as Tk
 
+ops :: [String]
 ops  = ["+", "*", "-", "/", ";", "<", ">", "<=", ">=", "==", "!="]
 
+names :: [String]
 names = [ "def"
         , "extern"
         , "return"
