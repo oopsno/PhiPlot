@@ -51,7 +51,7 @@ bfactor :: Parser BoolExpr
 bfactor = try beatom <|> try nonzero <|> parens bexpr
 
 beatom :: Parser BoolExpr
-beatom = aexpr >>= return . BEAtrom
+beatom = aexpr >>= return . BEAtom
 
 -- Componentions
 

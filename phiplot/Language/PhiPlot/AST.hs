@@ -37,7 +37,7 @@ data BoolExpr = BoolVal Bool
               | LogicOp Op BoolExpr BoolExpr
               | Not BoolExpr
               | Nonzero Expr
-              | BEAtrom Expr
+              | BEAtom Expr
               deriving (Eq, Show, Generic)
 
 data Op = Plus | Minus
