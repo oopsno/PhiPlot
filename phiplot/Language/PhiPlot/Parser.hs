@@ -2,6 +2,8 @@ module Language.PhiPlot.Parser where
 
 import Prelude hiding (Ordering(..))
 
+import Control.Monad ( liftM, liftM2, liftM3, liftM3, liftM4, liftM5 )
+
 import Text.Parsec
 import Text.Parsec.String (Parser)
 
@@ -86,11 +88,15 @@ stmt = do
     <|> try assign
     <|> try bstmt
     <|> try astmt
+    <|> try ret_stmt
   optional $ reservedOp ";"
   return v
 
 block :: Parser [AST]
-block = braces $ many stmt
+block = try (braces $ many stmt) <|> try singleStmt
+  where singleStmt = do
+          s <- stmt
+          return [s]
 
 astmt :: Parser AST
 astmt = aexpr >>= return . AExp
@@ -106,38 +112,26 @@ assign = do
   return $ Assign k v
 
 defun :: Parser AST
-defun = do
-  reserved "def"
-  name <- identifier
-  args <- parens $ commaSep variable
-  body <- braces $ many stmt
-  return $ Def name args body
+defun = reserved "def" >> liftM3 Def identifier args body
+  where args = parens $ commaSep variable
+        body = braces $ many stmt
 
-cond = do
-  reserved "if"
-  c <- parens $ bexpr
-  t <- block
-  reserved "else"
-  f <- block
-  return $ If c t f
+ret_stmt :: Parser AST
+ret_stmt = reserved "return" >> liftM Return aexpr
 
-for = do
-  reserved "for"
-  v <- identifier
-  reserved "from"
-  s <- aexpr
-  reserved "to"
-  e <- aexpr
-  reserved "step"
-  d <- aexpr
-  b <- many stmt
-  return $ For v s e d b
+cond :: Parser AST
+cond = reserved "if" >> liftM3 If bexpr trueCase falseCase
+  where trueCase  = (optional $ reserved "then")   >> block
+        falseCase = option [Void] (reserved "else" >> block)
 
-while = do
-  reserved "while"
-  c <- bexpr
-  b <- many stmt
-  return $ While c b
+for :: Parser AST
+for = reserved "for" >> liftM5 For identifier start stop step block
+  where start = reserved "from" >> aexpr
+        stop  = reserved "to" >> aexpr
+        step  = option (Number 1) (reserved "step" >> aexpr)
+
+while :: Parser AST
+while = reserved "while" >> liftM2 While bexpr block
 
 -- The full parser
 
@@ -153,5 +147,5 @@ parseBExpr s = parse (contents bexpr) "<stdin>" s
 parseToplevel :: String -> Either ParseError [AST]
 parseToplevel s = parse (contents toplevel) "<stdin>" s
 
-phiParser = parseToplevel
-
+parsePhiplot :: String -> Either ParseError [AST]
+parsePhiplot = parseToplevel

@@ -1,6 +1,7 @@
 if x > 3 then {
-    42
-} elif x > 2 or x < -2 then
-    2
-else
-    0
+    return 42;
+} else if x > 2 || x < -2 then
+    return 2;
+else {
+    return 0;
+}
