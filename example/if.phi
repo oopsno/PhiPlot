@@ -1,7 +1,0 @@
-if x > 3 then {
-    return 42;
-} else if x > 2 || x < -2 then
-    return 2;
-else {
-    return 0;
-}
