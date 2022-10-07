@@ -1,11 +1,10 @@
-import Control.Monad ( liftM )
-import Language.PhiPlot.Parser  ( parsePhiplot )
-import Language.PhiPlot.Desugar ( desugarAll )
-import Text.PrettyPrint.GenericPretty
+import Language.PhiPlot.Desugar (desugar)
+import Language.PhiPlot.Parser (parsePhiplot)
+import Text.PrettyPrint.GenericPretty (pp)
 
 main :: IO ()
 main = do
-  result <- liftM parsePhiplot getContents
-  case result of
-    Right ast -> mapM_ pp $ desugarAll ast
-    Left  exp -> print exp
+  source <- getContents
+  case desugar <$> parsePhiplot source of
+    Right ast -> pp ast
+    Left exp -> print exp

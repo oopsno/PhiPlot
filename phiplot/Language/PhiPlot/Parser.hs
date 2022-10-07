@@ -1,71 +1,71 @@
 module Language.PhiPlot.Parser where
 
-import Prelude hiding (Ordering(..))
-
-import Control.Monad ( liftM, liftM2, liftM3, liftM3, liftM4, liftM5 )
-
-import Text.Parsec
-import Text.Parsec.String (Parser)
-
-import qualified Text.Parsec.Expr as Ex
-import qualified Text.Parsec.Token as Tok
-
-import Language.PhiPlot.Lexer
+import Data.Functor
 import Language.PhiPlot.AST
+import Language.PhiPlot.Lexer
+import Text.Parsec
+    ( ParseError, option, eof, (<?>), (<|>), many, parse, try )
+import qualified Text.Parsec.Expr as Ex
+import Text.Parsec.String (Parser)
+import qualified Text.Parsec.Token as Tk
+import qualified Text.Parsec.Token as Tok
+import Text.Printf (PrintfArg (parseFormat))
+import Prelude hiding (Ordering (..))
 
 -- Parse algebra expressions
-
-binopl (s, f) = Ex.Infix (reservedOp s >> return (BinOp f)) Ex.AssocLeft
-
-prefix (s, f) = Ex.Prefix (reservedOp s >> return (UniOp f))
-
-algops = [ prefixs [ ("+", Positive), ("-", Negative) ] 
-         , infixls [ ("*", Mul), ("/", Div) ]
-         , infixls [ ("+", Plus), ("-", Minus) ] ]
-         where infixls = map binopl
-               prefixs = map prefix
-
 aexpr :: Parser Expr
-aexpr = Ex.buildExpressionParser algops afactor
-
-afactor :: Parser Expr
-afactor = try number
-  <|> try call
-  <|> variable
-  <|> parens aexpr
+aexpr = Ex.buildExpressionParser table factor <?> "aexpr"
+  where
+    prefixs = map $ \(s, f) -> Ex.Prefix (reservedOp s >> return (UniOp f))
+    infixls = map $ \(s, f) -> Ex.Infix (reservedOp s >> return (BinOp f)) Ex.AssocLeft
+    table =
+      [ prefixs [("+", Positive), ("-", Negative)],
+        infixls [("**", Pow)],
+        infixls [("*", Mul), ("/", Div)],
+        infixls [("+", Plus), ("-", Minus)]
+      ]
+    factor =
+      try immediate
+        <|> try pair
+        <|> try call
+        <|> try variable
+        <|> try (parens aexpr)
+        <?> "factor"
 
 -- Parser logic expressions
 
-cmp (s, f) = Ex.Infix (reservedOp s >> return (Cmp f)) Ex.AssocLeft
-bop (s, f) = Ex.Infix (reservedOp s >> return (LogicOp f)) Ex.AssocLeft
-
-logops = [ [ Ex.Prefix (reservedOp "!" >> return Not) ] 
-         , map cmp [ ("<", LT), (">", GT), ("<=", LE)
-                   , (">=", GE), ("==", EQ), ("!=", NE) ]
-         , map bop [ ("&&", AND), ("||", OR) ] ]
-
 bexpr :: Parser BoolExpr
-bexpr = Ex.buildExpressionParser logops bfactor
-
-bfactor :: Parser BoolExpr
-bfactor = try beatom <|> try nonzero <|> parens bexpr
-
-beatom :: Parser BoolExpr
-beatom = aexpr >>= return . BEAtom
+bexpr = Ex.buildExpressionParser table factor <?> "boolean expression"
+  where
+    table =
+      [ [Ex.Prefix (reservedOp "!" >> return Not)],
+        map cmp [("<", LT), (">", GT), ("<=", LE), (">=", GE), ("==", EQ), ("!=", NE)],
+        map makeBoolExpr [("&&", AND), ("||", OR)]
+      ]
+    cmp (s, f) = Ex.Infix (reservedOp s >> return (Cmp f)) Ex.AssocLeft
+    makeBoolExpr (s, f) = Ex.Infix (reservedOp s >> return (LogicOp f)) Ex.AssocLeft
+    factor = try nonzero <|> parens bexpr
 
 -- Componentions
 
-number :: Parser Expr
-number = try numberf <|> try numberi
-  where numberf = float >>= return . Number
-        numberi = intfloat >>= return . Number
+immediate :: Parser Expr
+immediate = Imm <$> (try float <|> try intfloat)
 
 variable :: Parser Expr
-variable = identifier >>= return . Var
+variable = Var <$> identifier
+
+pair :: Parser Expr
+pair = do
+  reserved "("
+  x <- aexpr
+  reserved ","
+  y <- aexpr
+  reserved ")"
+  return $ Pair x y
 
 nonzero :: Parser BoolExpr
-nonzero = (try number <|> try variable) >>= return . Nonzero
- 
+nonzero = Nonzero <$> aexpr
+
 call :: Parser Expr
 call = do
   name <- identifier
@@ -79,76 +79,75 @@ contents p = do
   eof
   return r
 
-
--- Statements
-stmt :: Parser AST
-stmt =  try cond
+-- Statement
+stmt :: Parser Stmt
+stmt =
+  try cond
+    <|> try block
     <|> try for
-    <|> try while
     <|> try assign
     <|> try bstmt
     <|> try astmt
     <|> try semi
-    <|> try ret_stmt
-    <|> try break_stmt
+    <|> try returnStmt
+    <|> try breakStmt
 
-block :: Parser [AST]
-block = choice [braces $ many stmt, return <$> stmt ]
+block :: Parser Stmt
+block = Block <$> braces (many stmt)
 
-astmt :: Parser AST
-astmt = aexpr >>= return . AExp
+astmt :: Parser Stmt
+astmt = AExp <$> aexpr
 
-bstmt :: Parser AST
-bstmt = bexpr >>= return . BExp
+bstmt :: Parser Stmt
+bstmt = BExp <$> bexpr
 
-assign :: Parser AST
+assign :: Parser Stmt
 assign = do
   k <- identifier
-  reservedOp "="
-  v <- aexpr
-  return $ Assign k v
+  try (reserved "is") <|> try (reservedOp "=") <?> "use = or is to assign"
+  Assign k <$> aexpr
 
-defun :: Parser AST
-defun = reserved "def" >> liftM3 Def identifier args body
-  where args = parens $ commaSep variable
-        body = braces $ many stmt
+defun :: Parser Stmt
+defun = do
+  reserved "def"
+  name <- identifier
+  args <- parens $ commaSep variable
+  Def name args <$> block
 
-ret_stmt :: Parser AST
-ret_stmt = reserved "return" >> liftM Return aexpr
+returnStmt :: Parser Stmt
+returnStmt = reserved "return" >> Return <$> aexpr
 
-cond :: Parser AST
-cond = reserved "if" >> liftM3 If bexpr trueCase falseCase
-  where trueCase  = (optional $ reserved "then")   >> block
-        falseCase = option [Void] (reserved "else" >> block)
+cond :: Parser Stmt
+cond = do
+  reserved "if"
+  cond <- bexpr
+  trueCase <- block
+  falseCase <- option Void (reserved "else" >> block)
+  return $ If cond trueCase falseCase
 
-for :: Parser AST
-for = reserved "for" >> liftM5 For identifier start stop step block
-  where start = reserved "from" >> aexpr
-        stop  = reserved "to" >> aexpr
-        step  = option (Number 1) (reserved "step" >> aexpr)
+for :: Parser Stmt
+for = do
+  reserved "for"
+  var <- identifier
+  reserved "from"
+  start <- aexpr
+  reserved "to"
+  stop <- aexpr
+  step <- option (Imm 1) (reserved "step" >> aexpr)
+  For var start stop step <$> (try block <|> try draw <?> "block stmt or draw (x, y)")
+  where
+    draw = AExp <$> call
 
-while :: Parser AST
-while = reserved "while" >> liftM2 While bexpr block
-
-semi :: Parser AST
+semi :: Parser Stmt
 semi = reservedOp ";" >> return Void
 
-break_stmt :: Parser AST
-break_stmt = reserved "break" >> return Break
+breakStmt :: Parser Stmt
+breakStmt = reserved "break" >> return Break
 
 -- The full parser
 
-toplevel :: Parser [AST]
+toplevel :: Parser [Stmt]
 toplevel = many $ try stmt <|> try defun
 
-parseAExpr :: String -> Either ParseError Expr
-parseAExpr s = parse (contents aexpr) "<stdin>" s
-
-parseBExpr :: String -> Either ParseError BoolExpr
-parseBExpr s = parse (contents bexpr) "<stdin>" s
-
-parseToplevel :: String -> Either ParseError [AST]
-parseToplevel s = parse (contents toplevel) "<stdin>" s
-
-parsePhiplot :: String -> Either ParseError [AST]
-parsePhiplot = parseToplevel
+parsePhiplot :: String -> Either ParseError [Stmt]
+parsePhiplot = parse (contents toplevel) "<stdin>"
