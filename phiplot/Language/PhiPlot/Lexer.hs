@@ -1,8 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Language.PhiPlot.Lexer where
 
 import qualified Control.Monad (void)
 import Data.Char
-import Text.Parsec (oneOf)
+import Data.Functor ((<&>))
+import Text.Parsec (oneOf, try, (<|>))
 import Text.Parsec.Language (emptyDef)
 import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tk
@@ -18,6 +21,9 @@ names =
     "if",
     "else",
     "for",
+    "origin",
+    "rot",
+    "scale",
     "is"
   ]
 
@@ -34,11 +40,11 @@ lexer =
         Tk.caseSensitive = False
       }
 
-float :: Parser Double
-float = Tk.float lexer
-
-intfloat :: Parser Double
-intfloat = fromIntegral <$> Tk.integer lexer
+number :: Parser Double
+number =
+  Tk.naturalOrFloat lexer <&> \case
+    Left i -> fromInteger i
+    Right f -> f
 
 parens :: Parser a -> Parser a
 parens = Tk.parens lexer

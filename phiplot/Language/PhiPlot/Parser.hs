@@ -1,10 +1,29 @@
-module Language.PhiPlot.Parser where
+module Language.PhiPlot.Parser (parsePhiplot) where
 
+import Control.Monad (liftM2)
 import Data.Functor
 import Language.PhiPlot.AST
 import Language.PhiPlot.Lexer
+  ( braces,
+    commaSep,
+    identifier,
+    lexer,
+    number,
+    parens,
+    reserved,
+    reservedOp,
+  )
 import Text.Parsec
-    ( ParseError, option, eof, (<?>), (<|>), many, parse, try )
+  ( ParseError,
+    char,
+    eof,
+    many,
+    option,
+    parse,
+    try,
+    (<?>),
+    (<|>),
+  )
 import qualified Text.Parsec.Expr as Ex
 import Text.Parsec.String (Parser)
 import qualified Text.Parsec.Token as Tk
@@ -14,7 +33,7 @@ import Prelude hiding (Ordering (..))
 
 -- Parse algebra expressions
 aexpr :: Parser Expr
-aexpr = Ex.buildExpressionParser table factor <?> "aexpr"
+aexpr = Ex.buildExpressionParser table term <?> "algebra expression"
   where
     prefixs = map $ \(s, f) -> Ex.Prefix (reservedOp s >> return (UniOp f))
     infixls = map $ \(s, f) -> Ex.Infix (reservedOp s >> return (BinOp f)) Ex.AssocLeft
@@ -24,13 +43,12 @@ aexpr = Ex.buildExpressionParser table factor <?> "aexpr"
         infixls [("*", Mul), ("/", Div)],
         infixls [("+", Plus), ("-", Minus)]
       ]
-    factor =
+    term =
       try immediate
-        <|> try pair
         <|> try call
         <|> try variable
         <|> try (parens aexpr)
-        <?> "factor"
+        <?> "algebra term"
 
 -- Parser logic expressions
 
@@ -49,19 +67,10 @@ bexpr = Ex.buildExpressionParser table factor <?> "boolean expression"
 -- Componentions
 
 immediate :: Parser Expr
-immediate = Imm <$> (try float <|> try intfloat)
+immediate = Imm <$> number
 
 variable :: Parser Expr
 variable = Var <$> identifier
-
-pair :: Parser Expr
-pair = do
-  reserved "("
-  x <- aexpr
-  reserved ","
-  y <- aexpr
-  reserved ")"
-  return $ Pair x y
 
 nonzero :: Parser BoolExpr
 nonzero = Nonzero <$> aexpr
@@ -88,24 +97,26 @@ stmt =
     <|> try assign
     <|> try bstmt
     <|> try astmt
-    <|> try semi
     <|> try returnStmt
     <|> try breakStmt
+    <|> try setRot
+    <|> try setScale
+    <|> try setOrigin
 
 block :: Parser Stmt
 block = Block <$> braces (many stmt)
 
 astmt :: Parser Stmt
-astmt = AExp <$> aexpr
+astmt = AExp <$> aexpr <* semicolon
 
 bstmt :: Parser Stmt
-bstmt = BExp <$> bexpr
+bstmt = BExp <$> bexpr <* semicolon
 
 assign :: Parser Stmt
 assign = do
   k <- identifier
   try (reserved "is") <|> try (reservedOp "=") <?> "use = or is to assign"
-  Assign k <$> aexpr
+  Assign k <$> aexpr <* semicolon
 
 defun :: Parser Stmt
 defun = do
@@ -115,7 +126,9 @@ defun = do
   Def name args <$> block
 
 returnStmt :: Parser Stmt
-returnStmt = reserved "return" >> Return <$> aexpr
+returnStmt = do
+  reserved "return"
+  Return <$> aexpr <* semicolon
 
 cond :: Parser Stmt
 cond = do
@@ -136,16 +149,38 @@ for = do
   step <- option (Imm 1) (reserved "step" >> aexpr)
   For var start stop step <$> (try block <|> try draw <?> "block stmt or draw (x, y)")
   where
-    draw = AExp <$> call
+    draw = AExp <$> call <* semicolon
 
-semi :: Parser Stmt
-semi = reservedOp ";" >> return Void
+semicolon :: Parser Stmt
+semicolon = reservedOp ";" >> return Void
 
 breakStmt :: Parser Stmt
-breakStmt = reserved "break" >> return Break
+breakStmt = reserved "break" >> semicolon >> return Break
+
+xCommaY = do
+  x <- aexpr
+  reservedOp ","
+  y <- aexpr
+  return (x, y)
+
+setOrigin = do
+  reserved "origin"
+  reserved "is"
+  (x, y) <- parens xCommaY
+  SetOrigin x y <$ semicolon
+
+setScale = do
+  reserved "scale"
+  reserved "is"
+  (x, y) <- parens xCommaY
+  SetScale x y <$ semicolon
+
+setRot = do
+  reserved "rot"
+  reserved "is"
+  SetRot <$> aexpr <* semicolon
 
 -- The full parser
-
 toplevel :: Parser [Stmt]
 toplevel = many $ try stmt <|> try defun
 

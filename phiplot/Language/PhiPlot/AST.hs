@@ -70,4 +70,7 @@ data Stmt
   | AExp Expr
   | BExp BoolExpr
   | Void
+  | SetRot { radian :: Expr }
+  | SetOrigin { originX :: Expr, originY :: Expr }
+  | SetScale { scaleX :: Expr, scaleY :: Expr}
   deriving (Eq, Show, Generic, Out)

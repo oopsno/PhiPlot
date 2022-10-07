@@ -1,0 +1,28 @@
+// 图形 1
+origin is (20, 200);
+rot is 0;
+scale is (40, 40);
+for t from 0 to 2 * pi + pi / 50 step pi / 50 draw (t, sin(t));
+origin is (20, 240);
+for t from 0 to 2 * pi + pi / 50 step pi / 50 draw (t, sin(t));
+origin is (20, 280);
+for t from 0 to 2 * pi + pi / 50 step pi / 50 draw (t, sin(t));
+
+// 图形 2
+origin is (380, 240);
+scale is (80, 80 / 3);
+rot is pi / 2 + 0 * pi / 3;
+for t from -pi to pi step pi / 50 draw (cos(t), sin(t));
+rot is pi / 2 + 2 * pi / 3;
+for t from -pi to pi step pi / 50 draw (cos(t), sin(t));
+rot is pi / 2 - 2 * pi / 3;
+for t from -pi to pi step pi / 50 draw (cos(t), sin(t));
+
+// 图形 3
+origin is (580, 240);
+scale is (80, 80);
+rot is 0;
+for t from 0 to 2  * pi step pi / 50 draw (cos(t), sin(t));
+for t from 0 to pi * 20 step pi / 50 draw
+    ((1 - 1 / (10 / 7)) * cos(t) + 1 / (10 / 7) * cos(-t * ((10 / 7) - 1)),
+     (1 - 1 / (10 / 7)) * sin(t) + 1 / (10 / 7) * sin(-t * ((10 / 7) - 1)));
