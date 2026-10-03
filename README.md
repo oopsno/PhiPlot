@@ -1,5 +1,6 @@
-PhiPlot
-========
+# PhiPlot
+
+## Overview
 
 **PhiPlot**是为完成XDU编译原理课程设计之要求而实现的一个的简易绘图语言。
 
@@ -16,5 +17,14 @@ PhiPlot的目标特性如下：
 + 可选的字节码编译器&虚拟机
 + LLVM based JIT (under developing)
 
-> **PhiPlot**的分析综合模块和字节码编译器仅在GHC 7.8.3 下测试通过。
-> **PhiPlot**的虚拟机可由完整实现C11标准的编译器编译，但不保证对Windows平台的兼容性。
+> **PhiPlot** 的分析综合模块和字节码编译器仅在GHC 9.10.3 下测试通过。
+> **PhiPlot** 的虚拟机可由完整实现C11标准的编译器编译，但不保证对Windows平台的兼容性。
+
+## Build
+
+
+```bash
+cabal build all
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
