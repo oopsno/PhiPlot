@@ -13,11 +13,17 @@ library
   build-depends:       base          ^>= 4.20,
                        parsec        ^>= 3.1,
                        GenericPretty ^>= 1.2,
+                       mtl           ^>= 2.3,
+                       syb           ^>= 0.7,
+                       containers    ^>= 0.7,
+                       primitive     ^>= 0.9,
+                       JuicyPixels   ^>= 3.3,
   exposed-modules:     Language.PhiPlot,
-                       Language.PhiPlot.Lexer,
                        Language.PhiPlot.AST,
+                       Language.PhiPlot.Interpreter,
+                       Language.PhiPlot.Lexer,
                        Language.PhiPlot.Parser,
-                       Language.PhiPlot.Desugar
+                       Language.PhiPlot.Simplify,
   default-language:    Haskell2010
 
 
@@ -26,5 +32,10 @@ executable PhiPlot
   build-depends:       base          ^>= 4.20,
                        parsec        ^>= 3.1,
                        GenericPretty ^>= 1.2,
+                       mtl           ^>= 2.3,
+                       syb           ^>= 0.7,
+                       containers    ^>= 0.7,
+                       primitive     ^>= 0.9,
+                       JuicyPixels   ^>= 3.3,
                        PhiPlot
   default-language:    Haskell2010

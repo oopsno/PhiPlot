@@ -52,17 +52,39 @@ aexpr = Ex.buildExpressionParser table term <?> "algebra expression"
 
 -- Parser logic expressions
 
-bexpr :: Parser BoolExpr
-bexpr = Ex.buildExpressionParser table factor <?> "boolean expression"
+boolAtom :: Parser BoolExpr
+boolAtom =
+  (BoolAtom True <$ reserved "true")
+    <|> (BoolAtom False <$ reserved "false")
+    <|> try compareExpr
+    <|> parens boolExpr
+    <?> "boolAtom"
+
+compareExpr :: Parser BoolExpr
+compareExpr = do
+  lhs <- aexpr
+  op <- cmpOp
+  rhs <- aexpr
+  pure $ Cmp op lhs rhs
+
+cmpOp :: Parser CompareOperator
+cmpOp =
+  (EQ <$ reservedOp "==")
+    <|> (NE <$ reservedOp "!=")
+    <|> (LE <$ reservedOp "<=")
+    <|> (GE <$ reservedOp ">=")
+    <|> (LT <$ reservedOp "<")
+    <|> (GT <$ reservedOp ">")
+    <?> "CompareOperator"
+
+boolExpr :: Parser BoolExpr
+boolExpr = Ex.buildExpressionParser table boolAtom <?> "boolean expression"
   where
     table =
-      [ [Ex.Prefix (reservedOp "!" >> return Not)],
-        map cmp [("<", LT), (">", GT), ("<=", LE), (">=", GE), ("==", EQ), ("!=", NE)],
-        map makeBoolExpr [("&&", AND), ("||", OR)]
+      [ [Ex.Prefix (Not <$ reservedOp "!")],
+        [Ex.Infix (LogicOp AND <$ reservedOp "&&") Ex.AssocLeft],
+        [Ex.Infix (LogicOp OR <$ reservedOp "||") Ex.AssocLeft]
       ]
-    cmp (s, f) = Ex.Infix (reservedOp s >> return (Cmp f)) Ex.AssocLeft
-    makeBoolExpr (s, f) = Ex.Infix (reservedOp s >> return (LogicOp f)) Ex.AssocLeft
-    factor = try nonzero <|> parens bexpr
 
 -- Componentions
 
@@ -95,13 +117,13 @@ stmt =
     <|> try block
     <|> try for
     <|> try assign
-    <|> try bstmt
     <|> try astmt
     <|> try returnStmt
     <|> try breakStmt
     <|> try setRot
     <|> try setScale
     <|> try setOrigin
+    <|> try setCanvasSize
 
 block :: Parser Stmt
 block = Block <$> braces (many stmt)
@@ -110,12 +132,12 @@ astmt :: Parser Stmt
 astmt = AExp <$> aexpr <* semicolon
 
 bstmt :: Parser Stmt
-bstmt = BExp <$> bexpr <* semicolon
+bstmt = BExp <$> boolExpr <* semicolon
 
 assign :: Parser Stmt
 assign = do
   k <- identifier
-  try (reserved "is") <|> try (reservedOp "=") <?> "use = or is to assign"
+  (reservedOp "=") <|> try (reserved "is") <?> "assign statemenet"
   Assign k <$> aexpr <* semicolon
 
 defun :: Parser Stmt
@@ -133,7 +155,7 @@ returnStmt = do
 cond :: Parser Stmt
 cond = do
   reserved "if"
-  cond <- bexpr
+  cond <- boolExpr
   trueCase <- block
   falseCase <- option Void (reserved "else" >> block)
   return $ If cond trueCase falseCase
@@ -163,22 +185,29 @@ xCommaY = do
   y <- aexpr
   return (x, y)
 
+pair = do
+  (x, y) <- parens xCommaY
+  return $ Pair x y
+
 setOrigin = do
   reserved "origin"
-  reserved "is"
-  (x, y) <- parens xCommaY
-  SetOrigin x y <$ semicolon
+  reservedOp "=" <|> try (reserved "is")
+  Assign "origin" <$> pair <* semicolon
 
 setScale = do
   reserved "scale"
-  reserved "is"
-  (x, y) <- parens xCommaY
-  SetScale x y <$ semicolon
+  reservedOp "=" <|> try (reserved "is")
+  Assign "scale" <$> pair <* semicolon
 
 setRot = do
   reserved "rot"
-  reserved "is"
-  SetRot <$> aexpr <* semicolon
+  reservedOp "=" <|> try (reserved "is")
+  Assign "rot" <$> aexpr <* semicolon
+
+setCanvasSize = do
+  reserved "canvasSize"
+  reservedOp "=" <|> try (reserved "is")
+  Assign "canvasSize" <$> pair <* semicolon
 
 -- The full parser
 toplevel :: Parser [Stmt]

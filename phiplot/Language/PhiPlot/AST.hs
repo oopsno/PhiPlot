@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
@@ -8,9 +9,16 @@ module Language.PhiPlot.AST
     BoolExpr (..),
     BinaryOperator (..),
     UnaryOperator (..),
+    CompareOperator (..),
+    LogicalBinaryOperator (..),
+    Name,
   )
 where
 
+import Data.Bits (And)
+import Data.Generics
+import qualified Data.Generics.Aliases as Data
+import GHC.Base (TrName (TrNameD))
 import GHC.Generics
 import Text.PrettyPrint.GenericPretty
 import Prelude hiding (Ord (..))
@@ -19,8 +27,7 @@ import Prelude hiding (Ord (..))
 data UnaryOperator
   = Negative
   | Positive
-  | NOT
-  deriving (Eq, Show, Generic, Out)
+  deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)
 
 -- 二元操作符
 data BinaryOperator
@@ -29,15 +36,21 @@ data BinaryOperator
   | Mul
   | Div
   | Pow
-  | LT
+  deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)
+
+data CompareOperator
+  = LT
   | GT
   | LE
   | GE
   | EQ
   | NE
-  | AND
+  deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)
+
+data LogicalBinaryOperator
+  = AND
   | OR
-  deriving (Eq, Show, Generic, Out)
+  deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)
 
 type Name = String
 
@@ -48,29 +61,25 @@ data Expr
   | UniOp {uop :: UnaryOperator, exp :: Expr}
   | BinOp {bop :: BinaryOperator, lhs :: Expr, rhs :: Expr}
   | Call {fn :: Name, args :: [Expr]}
-  deriving (Eq, Show, Generic, Out)
+  deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)
 
 data BoolExpr
-  = Const Bool
-  | Cmp BinaryOperator BoolExpr BoolExpr
-  | LogicOp BinaryOperator BoolExpr BoolExpr
+  = BoolAtom Bool
+  | Cmp CompareOperator Expr Expr
+  | LogicOp LogicalBinaryOperator BoolExpr BoolExpr
   | Not BoolExpr
   | Nonzero Expr
-  | BEAtom Expr
-  deriving (Eq, Show, Generic, Out)
+  deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)
 
 data Stmt
-  = Assign Name Expr
-  | Def Name [Expr] Stmt
-  | For Name Expr Expr Expr Stmt
-  | If BoolExpr Stmt Stmt
+  = Assign {dst :: Name, value :: Expr}
+  | Def {fname :: Name, args :: [Expr], body :: Stmt}
+  | For {var :: Name, start :: Expr, end :: Expr, step :: Expr, body :: Stmt}
+  | If {condition :: BoolExpr, thenBody :: Stmt, elseBody :: Stmt}
   | Block [Stmt]
   | Break
   | Return Expr
   | AExp Expr
   | BExp BoolExpr
   | Void
-  | SetRot { radian :: Expr }
-  | SetOrigin { originX :: Expr, originY :: Expr }
-  | SetScale { scaleX :: Expr, scaleY :: Expr}
-  deriving (Eq, Show, Generic, Out)
+  deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)

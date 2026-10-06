@@ -311,3 +311,5 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.gitignore.io/api/haskell,c++,python,cmake,macos,visualstudiocode,clion,vim,linux,windows,osx
+
+canvas.png

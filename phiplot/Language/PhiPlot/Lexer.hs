@@ -24,7 +24,10 @@ names =
     "origin",
     "rot",
     "scale",
-    "is"
+    "canvasSize",
+    "is",
+    "true",
+    "false"
   ]
 
 lexer :: Tk.TokenParser ()
