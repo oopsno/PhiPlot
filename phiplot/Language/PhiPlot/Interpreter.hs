@@ -120,17 +120,22 @@ readDrawParams = do
 
 transformPoint :: DrawParams -> (Double, Double) -> Maybe (Int, Int)
 transformPoint param (x, y) =
-  if inbound then Just (x'', y'') else Nothing
+  if inbound then Just (x''', y''') else Nothing
   where
     (ox, oy) = origin param
     (sx, sy) = scale param
     (cx, cy) = canvasSize param
     theta = rot param
-    x' = x * cos theta - y * sin theta
-    y' = x * sin theta + y * cos theta
-    x'' = round $ ox + sx * x'
-    y'' = round $ oy + sy * y'
-    inbound = (0 <= x'' && x'' < cx) && (0 <= y'' && y'' < cy)
+    -- 比例变换
+    x' = x * sx
+    y' = y * sy
+    -- 旋转变换
+    x'' =   x' * cos theta + y' * sin theta
+    y'' = - x' * sin theta + y' * cos theta
+    -- 平移变换
+    x''' = round $ ox + x''
+    y''' = round $ oy + y''
+    inbound = (0 <= x''' && x''' < cx) && (0 <= y''' && y''' < cy)
 
 data Builtin = Builtin
   { arity :: Int,
@@ -166,7 +171,7 @@ wrapBinaryMathFunction f = binary g
 builtinPrint :: Builtin
 builtinPrint = unary $ \x -> do
   liftIO $ putStrLn $ show x
-  pure x
+  pure VUnit
 
 withImage :: (MutableImage RealWorld PixelRGB8 -> StmtM Value) -> StmtM Value
 withImage k = do
@@ -206,8 +211,10 @@ builtins =
   Map.fromList
     [ ("sin", wrapUnaryMathFunction sin),
       ("cos", wrapUnaryMathFunction cos),
+      ("tan", wrapUnaryMathFunction tan),
       ("sqrt", wrapUnaryMathFunction sqrt),
       ("ln", wrapUnaryMathFunction log),
+      ("log", wrapUnaryMathFunction log),
       ("exp", wrapUnaryMathFunction exp),
       ("pow", wrapBinaryMathFunction (**)),
       ("print", builtinPrint),

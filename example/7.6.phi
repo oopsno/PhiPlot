@@ -1,0 +1,4 @@
+origin is (360, 240);
+rot is pi / 2;
+scale is (100, 100 / 3);
+for t from 0 to 2 * pi step pi / 50 draw (cos(t), sin(t));
