@@ -29,9 +29,10 @@
   - 赋值语句: 支持 C 风格赋值 `dst = src;`
   - 循环语句
     - 循环变量可以具有任意名称
-    - 循环体可以是任意块语句
+    - 循环体可以是任意块语句, `draw(...)` 作为函数实现
 - 内置函数
-  - `draw(x, y)` 实现为普通函数
+  - `draw(x, y)`: 执行变换并绘制点 (x, y)
+  - `draw(x, y, r, g, b)`: 执行变换并以指定颜色绘制点 (x, y)
   - `print(x)` 打印 `x` 的值
 - 支持自定义函数
 
@@ -46,3 +47,12 @@ cabal build
 ```bash
 cabal test
 ```
+## 运行示例程序
+
+`example/activations.phi` 包含所有拓展特性, 执行
+
+```
+cabal run PhiPlot -- -i example/activations.phi -o activations.png
+```
+
+以渲染图像。

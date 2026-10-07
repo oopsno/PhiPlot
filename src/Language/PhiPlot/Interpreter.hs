@@ -15,6 +15,7 @@ import Control.Monad.Reader
 import Control.Monad.ST
 import Control.Monad.State
 import Data.IORef
+import Data.Ord (clamp)
 import qualified Data.Map as Map
 import Language.PhiPlot.AST (Stmt (condition))
 import qualified Language.PhiPlot.AST as A
@@ -228,17 +229,25 @@ withImage k = do
     Just img -> k img
 
 builtinDraw :: Builtin
-builtinDraw = binary draw
+builtinDraw = Builtin 2 $ \args -> do
+  args' <- mapM asDoubleM args
+  case args' of
+    [x, y] -> draw x y white
+    [x, y, r, g, b] -> draw x y $ PixelRGB8 (narrow r) (narrow g) (narrow b)
   where
-    draw :: Value -> Value -> EvalM Value
-    draw x y = do
+    narrow :: Double -> Pixel8
+    narrow x = round $ clamp (0, 255) x
+
+    white :: PixelRGB8
+    white = (PixelRGB8 255 255 255)
+
+    draw :: Double -> Double -> PixelRGB8 -> EvalM Value
+    draw x y color = do
       p <- readDrawParams
-      x' <- asDoubleM x
-      y' <- asDoubleM y
-      case transformPoint p (x', y') of
+      case transformPoint p (x, y) of
         Just (ix, iy) -> do
           withImage $ \img -> do
-            liftIO $ writePixel img ix iy (PixelRGB8 255 255 255)
+            liftIO $ writePixel img ix iy color
             pure VUnit
         Nothing -> pure VUnit
 

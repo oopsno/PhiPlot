@@ -1,0 +1,69 @@
+def sinh(x) {
+    return (exp(x) - exp(-x)) / 2;
+}
+
+def cosh(x) {
+    return (exp(x) + exp(-x)) / 2;
+}
+
+def tanh(x) {
+    return sinh(x) / cosh(x);
+}
+
+def gelu(x) {
+    return 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.44715 * x ** 3)));
+}
+
+def max(a, b) {
+    if a > b {
+        return a;
+    } else {
+        return b;
+    }
+}
+
+def min(a, b) {
+    if a < b {
+        return a;
+    } else {
+        return b;
+    }
+}
+
+def selu(x) {
+    a = 1.6732632423543772848170429916717;
+    s = 1.0507009873554804934193349852946;
+    return s * (max(0, x) + min(0, a * (exp(x) - 1)));
+}
+
+def sigmoid(x) {
+    return 1 / (1 + exp(-x));
+}
+
+def silu(x) {
+    return x * sigmoid(x);
+}
+
+def softplus(x, beta, threshold) {
+    if x * beta > threshold {
+        return x;
+    } else {
+        return (1 / beta) * (1 + exp(beta * x));
+    }
+}
+
+def mish(x) {
+    return x * tanh(softplus(x, 1, 20));
+}
+
+canvasSize = (2048, 512);
+scale is (128, 128);
+origin is (1024, 256);
+for x from -8 to 8 step 1/256 {
+    draw(x, -tanh(x), 51, 60, 66);
+    draw(x, -gelu(x), 49, 102, 88);
+    draw(x, -selu(x), 94, 166, 156);
+    draw(x, -sigmoid(x), 194, 207, 162);
+    draw(x, -silu(x), 164, 121, 158);
+    draw(x, -mish(x), 112, 102, 144);
+}
