@@ -14,22 +14,6 @@ def gelu(x) {
     return 0.5 * x * (1 + tanh(sqrt(2 / pi) * (x + 0.44715 * x ** 3)));
 }
 
-def max(a, b) {
-    if a > b {
-        return a;
-    } else {
-        return b;
-    }
-}
-
-def min(a, b) {
-    if a < b {
-        return a;
-    } else {
-        return b;
-    }
-}
-
 def selu(x) {
     a = 1.6732632423543772848170429916717;
     s = 1.0507009873554804934193349852946;

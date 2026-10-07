@@ -1,6 +1,20 @@
-for t from 0 to 8*PI step 0.0001 {
-    r = 10 * (1 + t);
+/* 绘制阿基米德螺线 */
+side = 1024; // 图像边长
+turns = 16;  // 螺线圈数
+
+// 以下是参数化绘图
+canvasSize = (side, side);
+origin = (side / 2, side /2 );
+cutoffFreq = turns * pi;
+norm = 6 / (2 * pi);
+ratio = (side / 2) / (1 + cutoffFreq);
+for t from 0 to cutoffFreq step 0.0001 {
+    r = ratio * (1 + t);
     x = r * cos(t);
     y = r * sin(t);
-    draw(x, y);
+    hue = mod(t, 2 * pi) * norm;
+    r = 255 * clamp(abs(hue - 3) - 1);
+    g = 255 * clamp(2 - abs(hue - 2));
+    b = 255 * clamp(2 - abs(hue - 4));
+    draw(x, y, r, g, b);
 }

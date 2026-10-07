@@ -14,6 +14,7 @@ import Control.Monad.Primitive (RealWorld, PrimMonad, PrimState)
 import Control.Monad.Reader
 import Control.Monad.ST
 import Control.Monad.State
+import Data.Fixed (mod')
 import Data.IORef
 import Data.Ord (clamp)
 import qualified Data.Map as Map
@@ -250,7 +251,16 @@ builtinDraw = Builtin 2 $ \args -> do
             liftIO $ writePixel img ix iy color
             pure VUnit
         Nothing -> pure VUnit
+  
+buildinClamp :: Builtin
+buildinClamp = Builtin 3 $ \args -> do
+  args' <- mapM asDoubleM args
+  case args' of
+    [x] -> pure . VScalar $ clamp (0, 1) x
+    [x, amin, amax] -> pure . VScalar $ clamp (amin, amax) x
+    _ -> throwError $ ArityErr "Wrong number of arguments" 3 (length args)
 
+saveImage :: FilePath -> EvalM Value
 saveImage path = withImage $ \img -> do
   liftIO $ do
     frozen <- freezeImage img
@@ -267,7 +277,14 @@ builtins =
       ("ln", wrapUnaryMathFunction log),
       ("log", wrapUnaryMathFunction log),
       ("exp", wrapUnaryMathFunction exp),
+      ("abs", wrapUnaryMathFunction abs),
+      ("floor", wrapUnaryMathFunction (fromInteger . floor)),
+      ("ceil", wrapUnaryMathFunction (fromInteger . ceiling)),
       ("pow", wrapBinaryMathFunction (**)),
+      ("min", wrapBinaryMathFunction (min)),
+      ("max", wrapBinaryMathFunction (max)),
+      ("mod", wrapBinaryMathFunction (mod')),
+      ("clamp", buildinClamp),
       ("print", builtinPrint),
       ("draw", builtinDraw)
     ]
