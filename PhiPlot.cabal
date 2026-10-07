@@ -1,0 +1,85 @@
+cabal-version:      3.0
+name:               PhiPlot
+version:            0.1.0.0
+license:            GPL-3.0-or-later
+maintainer:         yufeiliu94@gmail.com
+author:             Liu Yufei
+homepage:           https://github.com/oopsno/PhiPlot
+build-type:         Simple
+extra-source-files:
+    ChangeLog.md
+    README.md
+
+library
+    exposed-modules:
+        Language.PhiPlot
+        Language.PhiPlot.AST
+        Language.PhiPlot.Interpreter
+        Language.PhiPlot.Lexer
+        Language.PhiPlot.Parser
+        Language.PhiPlot.Simplify
+
+    hs-source-dirs:   src
+    default-language: Haskell2010
+    build-depends:
+        base ^>=4.20,
+        GenericPretty ^>=1.2,
+        JuicyPixels ^>=3.3,
+        containers ^>=0.7,
+        mtl ^>=2.3,
+        parsec ^>=3.1,
+        primitive ^>=0.9,
+        syb ^>=0.7,
+        lens ^>=5.3
+
+executable PhiPlot
+    main-is:          Main.hs
+    hs-source-dirs:   src
+    other-modules:
+        Language.PhiPlot.AST
+        Language.PhiPlot.Interpreter
+        Language.PhiPlot.Lexer
+        Language.PhiPlot.Parser
+        Language.PhiPlot.Simplify
+
+    default-language: Haskell2010
+    build-depends:
+        base ^>=4.20,
+        GenericPretty ^>=1.2,
+        JuicyPixels ^>=3.3,
+        containers ^>=0.7,
+        mtl ^>=2.3,
+        parsec ^>=3.1,
+        primitive ^>=0.9,
+        syb ^>=0.7,
+        lens ^>=5.3,
+        optparse-applicative ^>=0.19
+
+test-suite phiplot-test
+    type:             exitcode-stdio-1.0
+    main-is:          Main.hs
+    hs-source-dirs:   test src
+    other-modules:
+        Language.PhiPlot.AST
+        Language.PhiPlot.Interpreter
+        Language.PhiPlot.Lexer
+        Language.PhiPlot.Parser
+        Language.PhiPlot.Simplify
+        Testing.Interpreter
+        Testing.Parser
+
+    default-language: Haskell2010
+    build-depends:
+        base ^>=4.20,
+        GenericPretty ^>=1.2,
+        JuicyPixels ^>=3.3,
+        containers ^>=0.7,
+        mtl ^>=2.3,
+        parsec ^>=3.1,
+        primitive ^>=0.9,
+        syb ^>=0.7,
+        lens ^>=5.3,
+        tasty ^>=1.5,
+        tasty-hunit ^>=0.10,
+        tasty-quickcheck ^>=0.11,
+        QuickCheck ^>=2.19

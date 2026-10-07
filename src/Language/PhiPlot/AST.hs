@@ -58,6 +58,7 @@ data Expr
   = Var Name
   | Imm Double
   | Pair Expr Expr
+  | Tuple [Expr]
   | UniOp {uop :: UnaryOperator, exp :: Expr}
   | BinOp {bop :: BinaryOperator, lhs :: Expr, rhs :: Expr}
   | Call {fn :: Name, args :: [Expr]}

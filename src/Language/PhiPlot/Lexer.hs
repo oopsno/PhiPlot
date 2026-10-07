@@ -16,15 +16,14 @@ ops = ["+", "*", "**", "-", "/", ";", "<", ">", "<=", ">=", "==", "!=", "="]
 names :: [String]
 names =
   [ "def",
-    "extern",
     "return",
     "if",
     "else",
     "for",
-    "origin",
-    "rot",
-    "scale",
-    "canvasSize",
+    "from",
+    "to",
+    "step",
+    "break",
     "is",
     "true",
     "false"

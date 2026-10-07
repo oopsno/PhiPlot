@@ -31,9 +31,18 @@ import qualified Text.Parsec.Token as Tok
 import Text.Printf (PrintfArg (parseFormat))
 import Prelude hiding (Ordering (..))
 
--- Parse algebra expressions
-aexpr :: Parser Expr
-aexpr = Ex.buildExpressionParser table term <?> "algebra expression"
+-- Parse arithmetical expressions
+
+arithAtom :: Parser Expr
+arithAtom = 
+  Imm <$> number
+    <|> try call
+    <|> try variable
+    <|> try (parens arithExpr)
+    <?> "athithAtom"
+
+arithExpr :: Parser Expr
+arithExpr = Ex.buildExpressionParser table arithAtom <?> "arithmetical expression"
   where
     prefixs = map $ \(s, f) -> Ex.Prefix (reservedOp s >> return (UniOp f))
     infixls = map $ \(s, f) -> Ex.Infix (reservedOp s >> return (BinOp f)) Ex.AssocLeft
@@ -43,12 +52,24 @@ aexpr = Ex.buildExpressionParser table term <?> "algebra expression"
         infixls [("*", Mul), ("/", Div)],
         infixls [("+", Plus), ("-", Minus)]
       ]
-    term =
-      try immediate
-        <|> try call
-        <|> try variable
-        <|> try (parens aexpr)
-        <?> "algebra term"
+
+arithExprPair :: Parser Expr
+arithExprPair = do
+  reservedOp "("
+  lhs <- arithExpr
+  reservedOp ","
+  rhs <- arithExpr
+  reservedOp ")"
+  pure $ Pair lhs rhs
+
+call :: Parser Expr
+call = do
+  name <- identifier
+  args <- parens $ commaSep arithExpr
+  return $ Call name args
+
+variable :: Parser Expr
+variable = Var <$> identifier
 
 -- Parser logic expressions
 
@@ -58,13 +79,17 @@ boolAtom =
     <|> (BoolAtom False <$ reserved "false")
     <|> try compareExpr
     <|> parens boolExpr
+    <|> nonzero
     <?> "boolAtom"
+  where
+    nonzero :: Parser BoolExpr
+    nonzero = Nonzero <$> arithExpr
 
 compareExpr :: Parser BoolExpr
 compareExpr = do
-  lhs <- aexpr
+  lhs <- arithExpr
   op <- cmpOp
-  rhs <- aexpr
+  rhs <- arithExpr
   pure $ Cmp op lhs rhs
 
 cmpOp :: Parser CompareOperator
@@ -86,50 +111,23 @@ boolExpr = Ex.buildExpressionParser table boolAtom <?> "boolean expression"
         [Ex.Infix (LogicOp OR <$ reservedOp "||") Ex.AssocLeft]
       ]
 
--- Componentions
-
-immediate :: Parser Expr
-immediate = Imm <$> number
-
-variable :: Parser Expr
-variable = Var <$> identifier
-
-nonzero :: Parser BoolExpr
-nonzero = Nonzero <$> aexpr
-
-call :: Parser Expr
-call = do
-  name <- identifier
-  args <- parens $ commaSep aexpr
-  return $ Call name args
-
-contents :: Parser a -> Parser a
-contents p = do
-  Tok.whiteSpace lexer
-  r <- p
-  eof
-  return r
-
 -- Statement
+
 stmt :: Parser Stmt
 stmt =
   try cond
     <|> try block
+    <|> try breakStmt
+    <|> try returnStmt
     <|> try for
     <|> try assign
     <|> try astmt
-    <|> try returnStmt
-    <|> try breakStmt
-    <|> try setRot
-    <|> try setScale
-    <|> try setOrigin
-    <|> try setCanvasSize
 
 block :: Parser Stmt
 block = Block <$> braces (many stmt)
 
 astmt :: Parser Stmt
-astmt = AExp <$> aexpr <* semicolon
+astmt = AExp <$> arithExpr <* semicolon
 
 bstmt :: Parser Stmt
 bstmt = BExp <$> boolExpr <* semicolon
@@ -137,8 +135,8 @@ bstmt = BExp <$> boolExpr <* semicolon
 assign :: Parser Stmt
 assign = do
   k <- identifier
-  (reservedOp "=") <|> try (reserved "is") <?> "assign statemenet"
-  v <- aexpr <|> try pair
+  (reservedOp "=") <|> try (reserved "is") <?> "assign operator"
+  v <- try arithExprPair <|> try arithExpr <?> "value to assign"
   semicolon
   pure $ Assign k v
 
@@ -152,7 +150,7 @@ defun = do
 returnStmt :: Parser Stmt
 returnStmt = do
   reserved "return"
-  Return <$> aexpr <* semicolon
+  Return <$> arithExpr <* semicolon
 
 cond :: Parser Stmt
 cond = do
@@ -167,10 +165,10 @@ for = do
   reserved "for"
   var <- identifier
   reserved "from"
-  start <- aexpr
+  start <- arithExpr
   reserved "to"
-  stop <- aexpr
-  step <- option (Imm 1) (reserved "step" >> aexpr)
+  stop <- arithExpr
+  step <- option (Imm 1) (reserved "step" >> arithExpr)
   For var start stop step <$> (try block <|> try draw <?> "block stmt or draw (x, y)")
   where
     draw = AExp <$> call <* semicolon
@@ -181,39 +179,16 @@ semicolon = reservedOp ";" >> return Void
 breakStmt :: Parser Stmt
 breakStmt = reserved "break" >> semicolon >> return Break
 
-xCommaY = do
-  x <- aexpr
-  reservedOp ","
-  y <- aexpr
-  return (x, y)
-
-pair = do
-  (x, y) <- parens xCommaY
-  return $ Pair x y
-
-setOrigin = do
-  reserved "origin"
-  reservedOp "=" <|> try (reserved "is")
-  Assign "origin" <$> pair <* semicolon
-
-setScale = do
-  reserved "scale"
-  reservedOp "=" <|> try (reserved "is")
-  Assign "scale" <$> pair <* semicolon
-
-setRot = do
-  reserved "rot"
-  reservedOp "=" <|> try (reserved "is")
-  Assign "rot" <$> aexpr <* semicolon
-
-setCanvasSize = do
-  reserved "canvasSize"
-  reservedOp "=" <|> try (reserved "is")
-  Assign "canvasSize" <$> pair <* semicolon
-
 -- The full parser
 toplevel :: Parser [Stmt]
 toplevel = many $ try stmt <|> try defun
+
+contents :: Parser a -> Parser a
+contents p = do
+  Tok.whiteSpace lexer
+  r <- p
+  eof
+  return r
 
 parsePhiplot :: String -> Either ParseError [Stmt]
 parsePhiplot = parse (contents toplevel) "<stdin>"

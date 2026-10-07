@@ -63,6 +63,7 @@ newtype Canvas = Canvas
 type EvalM a = ReaderT Canvas (StateT EvalState (ExceptT Error IO)) a
 
 data Flow = Normal | Break | Return Value
+  deriving (Eq, Show)
 
 symOrigin :: String
 symOrigin = "origin"
@@ -71,7 +72,7 @@ symScale :: String
 symScale = "scale"
 
 symCanvasSize :: String
-symCanvasSize = "canvasSize"
+symCanvasSize = "canvassize"
 
 symRot :: String
 symRot = "rot"
@@ -356,8 +357,9 @@ evalStmtM (A.For var start end step body) = do
           modify' $ assignVar var (VScalar v)
           flow <- evalStmtM body
           case flow of
+            Normal -> loop (v + vstep) vend vstep
             Break -> pure Break
-            _ -> loop (v + vstep) vend vstep
+            rtv@(Return _) -> pure rtv
 evalStmtM (A.If c t f) = do
   c' <- evalBoolExprM c
   if c' then evalStmtM t else evalStmtM f
@@ -368,7 +370,8 @@ evalStmtM (A.Block stmts) = it stmts
       f <- evalStmtM s
       case f of
         Normal -> it rest
-        _ -> pure f
+        Break -> pure Break
+        rtv@(Return _) -> pure rtv
 evalStmtM (A.Break) = pure Break
 evalStmtM (A.Return expr) = evalExprM expr >>= pure . Return
 evalStmtM (A.AExp expr) = evalExprM expr >> pure Normal

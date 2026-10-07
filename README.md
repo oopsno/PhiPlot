@@ -16,15 +16,16 @@
   - `origin`
 - 语句
   - 赋值语句: `dst IS src;`
-  - 循环语句: `FOR T FROM start TO end STEP stride body DRAW(x, y)`
+  - 循环绘图语句: `FOR T FROM start TO end STEP stride body DRAW(x, y)`
 - 内置函数
   - 数学函数: `sin`, `cos`, `tan`, `sqrt`, `exp`, `log`
 
 ## 语言拓展
 
 - 全局变量
-  - `canvasSize`: 画布大小, 必须在第一次 `DRAW` 之前设置. 默认值为 1024 * 1024 像素.
+  - 添加 `canvasSize`: 画布大小, 必须在第一次 `DRAW` 之前设置. 默认值为 1024 * 1024 像素.
 - 语句
+  - 条件语句: 支持 C 风格的条件语句 `if COND { ... } else { ... }`
   - 赋值语句: 支持 C 风格赋值 `dst = src;`
   - 循环语句
     - 循环变量可以具有任意名称
@@ -37,7 +38,11 @@
 ## 构建说明
 
 ```bash
-cabal build all
+cabal build
 ```
 
-## 运行
+## 运行测试
+
+```bash
+cabal test
+```
