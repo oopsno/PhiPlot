@@ -1,6 +1,6 @@
 -- | 语句（'Language.PhiPlot.Parser' 中的 @stmt@）的单元测试。
 --
---   @stmt@ 本身未对外导出，因此这里统一通过公开入口 'parsePhiplot'
+--   @stmt@ 本身未对外导出，因此这里统一通过公开入口 'parseSource'
 --   驱动解析，并以 @[Stmt]@ 的形式断言解析结果。
 module Testing.Parser (tests) where
 
@@ -8,20 +8,20 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import qualified Language.PhiPlot.AST as A
-import Language.PhiPlot.Parser (parsePhiplot)
+import Language.PhiPlot.Parser (parseSource)
 
 tests :: TestTree
 tests = testGroup "Parser" [testStmt, testInvalidStmt]
 
 -- | 断言源码解析出的语句序列与期望一致
 parsesTo :: String -> [A.Stmt] -> Assertion
-parsesTo source expected = case parsePhiplot source of
+parsesTo source expected = case parseSource source of
   Left err -> assertFailure $ "parse failed: " ++ show err
-  Right actual -> actual @?= expected
+  Right (A.Module actual) -> actual @?= expected
 
 -- | 断言源码无法被解析
 rejects :: String -> Assertion
-rejects source = case parsePhiplot source of
+rejects source = case parseSource source of
   Left _ -> pure ()
   Right actual -> assertFailure $ "expected parse failure, but got " ++ show actual
 
@@ -31,7 +31,7 @@ testStmt = testGroup "stmt"
     testCase "assign: dst = src" $
       "x = 1;" `parsesTo` [A.Assign "x" (A.Imm 1)],
     testCase "assign: dst IS src" $
-      "x IS 1;" `parsesTo` [A.Assign "x" (A.Imm 1)],
+      "x IS 1.5;" `parsesTo` [A.Assign "x" (A.Imm 1.5)],
     testCase "assign: identifier is case-insensitive" $
       "X = 1;" `parsesTo` [A.Assign "x" (A.Imm 1)],
     testCase "assign: expression keeps precedence" $

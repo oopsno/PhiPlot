@@ -3,7 +3,7 @@
 
 -- | Interpreter 求值测试。
 --
---   所有用例均以 PhiPlot 源码书写，经 'parsePhiplot' 生成 AST 后求值，
+--   所有用例均以 PhiPlot 源码书写，经 'parseSource' 生成 AST 后求值，
 --   测试代码不手工构造 AST：
 --
 --   * 表达式：@parseExpr@ 把源码补成分号语句，取出 @AExp@ 中的表达式；
@@ -26,7 +26,7 @@ import Test.QuickCheck.Monadic
 
 import Language.PhiPlot.Interpreter as I hiding (run)
 import Language.PhiPlot.AST as A
-import Language.PhiPlot.Parser (parsePhiplot)
+import Language.PhiPlot.Parser (parseSource)
 
 tests :: TestTree
 tests = testGroup "Interpreter"
@@ -63,23 +63,23 @@ evalBlock state stmts = runEvalM state (evalStmtM (A.Block stmts))
 
 -- | 解析表达式源码（自动补语句分号），如 @1 + 2 * 3@
 parseExpr :: String -> Either String A.Expr
-parseExpr code = case parsePhiplot (code ++ ";") of
+parseExpr code = case parseSource (code ++ ";") of
   Left err -> Left $ "parse failed: " ++ show err
-  Right [A.AExp expr] -> Right expr
+  Right (A.Module [A.AExp expr]) -> Right expr
   Right stmts -> Left $ "expected a single expression, but got: " ++ show stmts
 
 -- | 解析布尔表达式源码，借 @if <cond> {}@ 的条件位取出
 parseCond :: String -> Either String A.BoolExpr
-parseCond code = case parsePhiplot ("if " ++ code ++ " {}") of
+parseCond code = case parseSource ("if " ++ code ++ " {}") of
   Left err -> Left $ "parse failed: " ++ show err
-  Right [A.If cond (A.Block []) A.Void] -> Right cond
+  Right (A.Module [A.If cond (A.Block []) A.Void]) -> Right cond
   Right stmts -> Left $ "expected a single condition, but got: " ++ show stmts
 
 -- | 解析完整程序
 parseProgram :: String -> Either String [A.Stmt]
-parseProgram code = case parsePhiplot code of
+parseProgram code = case parseSource code of
   Left err -> Left $ "parse failed: " ++ show err
-  Right stmts -> Right stmts
+  Right (A.Module stmts) -> Right stmts
 
 --------------------------------------------------------------------------
 -- 断言

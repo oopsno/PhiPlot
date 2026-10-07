@@ -1,7 +1,5 @@
-module Language.PhiPlot.Parser (parsePhiplot) where
+module Language.PhiPlot.Parser (parseSource, parseFile) where
 
-import Control.Monad (liftM2)
-import Data.Functor
 import Language.PhiPlot.AST
 import Language.PhiPlot.Lexer
   ( braces,
@@ -24,17 +22,16 @@ import Text.Parsec
     (<?>),
     (<|>),
   )
-import qualified Text.Parsec.Expr as Ex
+import qualified Text.Parsec.Expr as E
 import Text.Parsec.String (Parser)
-import qualified Text.Parsec.Token as Tk
-import qualified Text.Parsec.Token as Tok
+import qualified Text.Parsec.Token as T
 import Text.Printf (PrintfArg (parseFormat))
 import Prelude hiding (Ordering (..))
 
 -- Parse arithmetical expressions
 
 arithAtom :: Parser Expr
-arithAtom = 
+arithAtom =
   Imm <$> number
     <|> try call
     <|> try variable
@@ -42,10 +39,10 @@ arithAtom =
     <?> "athithAtom"
 
 arithExpr :: Parser Expr
-arithExpr = Ex.buildExpressionParser table arithAtom <?> "arithmetical expression"
+arithExpr = E.buildExpressionParser table arithAtom <?> "arithmetical expression"
   where
-    prefixs = map $ \(s, f) -> Ex.Prefix (reservedOp s >> return (UniOp f))
-    infixls = map $ \(s, f) -> Ex.Infix (reservedOp s >> return (BinOp f)) Ex.AssocLeft
+    prefixs = map $ \(s, f) -> E.Prefix (reservedOp s >> return (UniOp f))
+    infixls = map $ \(s, f) -> E.Infix (reservedOp s >> return (BinOp f)) E.AssocLeft
     table =
       [ prefixs [("+", Positive), ("-", Negative)],
         infixls [("**", Pow)],
@@ -103,12 +100,12 @@ cmpOp =
     <?> "CompareOperator"
 
 boolExpr :: Parser BoolExpr
-boolExpr = Ex.buildExpressionParser table boolAtom <?> "boolean expression"
+boolExpr = E.buildExpressionParser table boolAtom <?> "boolean expression"
   where
     table =
-      [ [Ex.Prefix (Not <$ reservedOp "!")],
-        [Ex.Infix (LogicOp AND <$ reservedOp "&&") Ex.AssocLeft],
-        [Ex.Infix (LogicOp OR <$ reservedOp "||") Ex.AssocLeft]
+      [ [E.Prefix (Not <$ reservedOp "!")],
+        [E.Infix (LogicOp AND <$ reservedOp "&&") E.AssocLeft],
+        [E.Infix (LogicOp OR <$ reservedOp "||") E.AssocLeft]
       ]
 
 -- Statement
@@ -180,15 +177,20 @@ breakStmt :: Parser Stmt
 breakStmt = reserved "break" >> semicolon >> return Break
 
 -- The full parser
-toplevel :: Parser [Stmt]
-toplevel = many $ try stmt <|> try defun
+program :: Parser Module
+program = Module <$> many (try stmt <|> try defun)
 
-contents :: Parser a -> Parser a
-contents p = do
-  Tok.whiteSpace lexer
+runParser :: Parser a -> Parser a
+runParser p = do
+  T.whiteSpace lexer
   r <- p
   eof
-  return r
+  pure r
 
-parsePhiplot :: String -> Either ParseError [Stmt]
-parsePhiplot = parse (contents toplevel) "<stdin>"
+parseSource :: String -> Either ParseError Module
+parseSource = parse (runParser program) "<stdin>"
+
+parseFile :: FilePath -> IO (Either ParseError Module)
+parseFile p = do
+  code <- readFile p
+  pure $ parse (runParser program) p code

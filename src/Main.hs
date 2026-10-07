@@ -1,7 +1,7 @@
 import Control.Lens ((^.))
 import Control.Monad (when)
 import Language.PhiPlot.Interpreter (runProgram, variables)
-import Language.PhiPlot.Parser (parsePhiplot)
+import Language.PhiPlot.Parser (parseFile)
 import Options.Applicative
 import Text.PrettyPrint.GenericPretty (pp)
 
@@ -35,12 +35,12 @@ arguments =
 
 interpreter :: Arguments -> IO ()
 interpreter args = do
-  code <- readFile (inputFile args)
-  case parsePhiplot code of
+  result <- parseFile $ inputFile args
+  case result of
     Left error -> putStrLn $ show error
-    Right stmts -> do
-      when (verbose args) $ pp stmts
-      result <- runProgram (outputFile args) stmts
+    Right mod -> do
+      when (verbose args) $ pp mod
+      result <- runProgram (outputFile args) mod
       case result of
         Left error -> putStrLn $ show error
         Right state -> when (verbose args) (print $ state ^. variables)

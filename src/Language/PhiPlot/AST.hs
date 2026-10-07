@@ -12,6 +12,7 @@ module Language.PhiPlot.AST
     CompareOperator (..),
     LogicalBinaryOperator (..),
     Name,
+    Module (..),
   )
 where
 
@@ -58,7 +59,6 @@ data Expr
   = Var Name
   | Imm Double
   | Pair Expr Expr
-  | Tuple [Expr]
   | UniOp {uop :: UnaryOperator, exp :: Expr}
   | BinOp {bop :: BinaryOperator, lhs :: Expr, rhs :: Expr}
   | Call {fn :: Name, args :: [Expr]}
@@ -84,3 +84,6 @@ data Stmt
   | BExp BoolExpr
   | Void
   deriving (Eq, Show, Data, Typeable, GHC.Generics.Generic, Out)
+
+data Module = Module [Stmt]
+  deriving (Eq, Show, GHC.Generics.Generic, Out)

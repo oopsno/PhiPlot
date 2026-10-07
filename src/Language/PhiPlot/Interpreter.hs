@@ -378,8 +378,8 @@ evalStmtM (A.AExp expr) = evalExprM expr >> pure Normal
 evalStmtM (A.BExp expr) = evalBoolExprM expr >> pure Normal
 evalStmtM (A.Void) = pure Normal
 
-runProgram :: FilePath -> [A.Stmt] -> IO (Either Error EvalState)
-runProgram path stmts = do
+runProgram :: FilePath -> A.Module -> IO (Either Error EvalState)
+runProgram path (A.Module stmts) = do
   ref <- newIORef Nothing
   let canvas = Canvas ref
   let ss = simplify stmts

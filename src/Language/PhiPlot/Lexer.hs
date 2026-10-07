@@ -3,15 +3,31 @@
 module Language.PhiPlot.Lexer where
 
 import qualified Control.Monad (void)
-import Data.Char
-import Data.Functor ((<&>))
+import Data.Char (toLower)
 import Text.Parsec (oneOf, try, (<|>))
 import Text.Parsec.Language (emptyDef)
 import Text.Parsec.String (Parser)
-import qualified Text.Parsec.Token as Tk
+import qualified Text.Parsec.Token as T
 
 ops :: [String]
-ops = ["+", "*", "**", "-", "/", ";", "<", ">", "<=", ">=", "==", "!=", "="]
+ops =
+  [ "+",
+    "*",
+    "**",
+    "-",
+    "/",
+    "<",
+    ">",
+    "<=",
+    ">=",
+    "==",
+    "!=",
+    "=",
+    "&&",
+    "||",
+    ",",
+    ";"
+  ]
 
 names :: [String]
 names =
@@ -29,46 +45,41 @@ names =
     "false"
   ]
 
-lexer :: Tk.TokenParser ()
+lexer :: T.TokenParser ()
 lexer =
-  Tk.makeTokenParser $
+  T.makeTokenParser $
     emptyDef
-      { Tk.commentStart = "/*",
-        Tk.commentEnd = "*/",
-        Tk.commentLine = "//",
-        Tk.nestedComments = True,
-        Tk.reservedOpNames = ops,
-        Tk.reservedNames = names,
-        Tk.caseSensitive = False
+      { T.commentStart = "/*",
+        T.commentEnd = "*/",
+        T.commentLine = "//",
+        T.nestedComments = True,
+        T.reservedOpNames = ops,
+        T.reservedNames = names,
+        T.caseSensitive = False
       }
 
+-- NOTE: (T.naturalOrFloat lexer) :: Either Integer Double
 number :: Parser Double
-number =
-  Tk.naturalOrFloat lexer <&> \case
-    Left i -> fromInteger i
-    Right f -> f
+number = either fromInteger id <$> T.naturalOrFloat lexer
 
 parens :: Parser a -> Parser a
-parens = Tk.parens lexer
+parens = T.parens lexer
 
 braces :: Parser a -> Parser a
-braces = Tk.braces lexer
+braces = T.braces lexer
 
 commaSep :: Parser a -> Parser [a]
-commaSep = Tk.commaSep lexer
+commaSep = T.commaSep lexer
 
 semiSep :: Parser a -> Parser [a]
-semiSep = Tk.semiSep lexer
+semiSep = T.semiSep lexer
 
 -- PhiPlot is NOT case sensitive
 identifier :: Parser String
-identifier = map toLower `fmap` Tk.identifier lexer
+identifier = map toLower <$> T.identifier lexer
 
 reserved :: String -> Parser ()
-reserved = Tk.reserved lexer
+reserved = T.reserved lexer
 
 reservedOp :: String -> Parser ()
-reservedOp = Tk.reservedOp lexer
-
-symbol :: String -> Parser ()
-symbol s = Control.Monad.void (Tk.symbol lexer s)
+reservedOp = T.reservedOp lexer
