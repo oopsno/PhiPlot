@@ -56,6 +56,12 @@ testStmt = testGroup "stmt"
     -- 表达式语句 / 块语句
     testCase "expression statement" $
       "draw(1, 2);" `parsesTo` [A.AExp (A.Call "draw" [A.Imm 1, A.Imm 2])],
+    testCase "all with expression" $
+      "draw(x ** y, -f(((y))));" `parsesTo` [A.AExp
+        (A.Call "draw" [
+          (A.BinOp A.Pow (A.Var "x") (A.Var "y")),
+          (A.UniOp A.Negative
+            (A.Call "f" [A.Var "y"]))])],
     testCase "empty block" $
       "{}" `parsesTo` [A.Block []],
     testCase "block keeps statement order" $
