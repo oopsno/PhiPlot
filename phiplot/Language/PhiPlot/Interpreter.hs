@@ -1,29 +1,41 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Language.PhiPlot.Interpreter (runProgram) where
+module Language.PhiPlot.Interpreter where
 
 import Codec.Picture.Png (writePng)
 import Codec.Picture.Types (MutableImage, Pixel8, PixelRGB8 (..), freezeImage, newMutableImage, writePixel)
+import Control.Applicative ((<|>))
+import Control.Lens
 import Control.Monad.Except (ExceptT, MonadError (throwError), runExceptT)
-import Control.Monad.Primitive
+import Control.Monad.Primitive (RealWorld, PrimMonad, PrimState)
 import Control.Monad.Reader
 import Control.Monad.ST
 import Control.Monad.State
 import Data.IORef
 import qualified Data.Map as Map
-import Foreign.C (isValidErrno)
-import GHC.Base (Levity (Lifted), VecElem (DoubleElemRep))
 import Language.PhiPlot.AST (Stmt (condition))
 import qualified Language.PhiPlot.AST as A
 import Language.PhiPlot.Simplify (simplify)
 
 data Value
   = VScalar Double
+  | VBool Bool
   | VPair Double Double
+  | VString String
+  | VClosure Closure
   | VUnit
   deriving (Eq, Show)
+
+data Closure = Closure
+  { _clParams :: [A.Name],
+    _clBody :: Stmt
+  }
+  deriving (Eq, Show)
+
+makeLenses ''Closure
 
 data Error
   = Unbound String
@@ -34,13 +46,21 @@ data Error
   | RuntimeError String
   deriving (Eq, Show)
 
-type Env = Map.Map A.Name Value
+data EvalState = EvalState
+  { _variables :: [Map.Map A.Name Value],
+    _functions :: Map.Map A.Name Value
+  }
+  deriving (Eq, Show)
+
+makeLenses ''EvalState
 
 type ImageRef = IORef (Maybe (MutableImage RealWorld PixelRGB8))
 
-newtype Canvas = Canvas {imageRef :: ImageRef}
+newtype Canvas = Canvas
+  { imageRef :: ImageRef
+  }
 
-type StmtM a = ReaderT Canvas (StateT Env (ExceptT Error IO)) a
+type EvalM a = ReaderT Canvas (StateT EvalState (ExceptT Error IO)) a
 
 data Flow = Normal | Break | Return Value
 
@@ -56,52 +76,73 @@ symCanvasSize = "canvasSize"
 symRot :: String
 symRot = "rot"
 
-createEnv :: Env
-createEnv =
-  Map.fromList
-    [ (symOrigin, (VPair 0 0)),
-      (symScale, (VPair 1 1)),
-      (symRot, (VScalar 0)),
-      (symCanvasSize, (VPair 1024 1024)),
-      ("pi", (VScalar pi)),
-      ("e", (VScalar $ Prelude.exp 1))
-    ]
+emptyState :: EvalState
+emptyState = EvalState [variables] functions
+  where
+    variables =
+      Map.fromList
+        [ (symOrigin, (VPair 0 0)),
+          (symScale, (VPair 1 1)),
+          (symRot, (VScalar 0)),
+          (symCanvasSize, (VPair 1024 1024)),
+          ("pi", (VScalar pi)),
+          ("e", (VScalar $ Prelude.exp 1))
+        ]
+    functions = Map.empty
+
+lookupVar :: A.Name -> EvalState -> Maybe Value
+lookupVar var = preview (variables . traverse . ix var)
+
+lookupVarM :: A.Name -> EvalM Value
+lookupVarM var = do
+  vars <- use variables
+  case preview (traverse . ix var) vars of
+    Just value -> pure value
+    Nothing -> throwError $ Unbound var
+
+assignVar :: String -> Value -> EvalState -> EvalState
+assignVar x v = variables %~ update
+  where
+    update [] = [Map.singleton x v]
+    update (s : ss)
+      | Map.member x s = Map.insert x v s : ss
+      | otherwise = s : update ss
 
 asDouble :: Value -> Either Error Double
 asDouble (VScalar x) = Right x
 asDouble otherwise = Left . TypeErr $ "Cannot cast expr as double: " ++ (show otherwise)
 
-asDoubleM :: Value -> StmtM Double
+asDoubleM :: Value -> EvalM Double
 asDoubleM (VScalar x) = pure x
 asDoubleM otherwise = throwError . TypeErr $ "Cannot cast expr as double: " ++ (show otherwise)
 
-readOriginM :: StmtM (Double, Double)
+readOriginM :: EvalM (Double, Double)
 readOriginM = do
-  env <- get
-  case Map.lookup "origin" env of
-    Just (VPair x y) -> pure (x, y)
-    Nothing -> throwError $ Internal "Symbol not defined: origin"
+  result <- lookupVarM symOrigin
+  case result of
+    (VPair x y) -> pure (x, y)
+    _ -> throwError $ Internal "'origin' is not a pair of f64"
 
-readScaleM :: StmtM (Double, Double)
+readScaleM :: EvalM (Double, Double)
 readScaleM = do
-  env <- get
-  case Map.lookup symScale env of
-    Just (VPair x y) -> pure (x, y)
-    Nothing -> throwError $ Unbound "Symbol not defined: scale"
+  result <- lookupVarM symScale
+  case result of
+    (VPair x y) -> pure (x, y)
+    _ -> throwError $ Internal "'scale' is not a pair of f64"
 
-readCanvasSizeM :: StmtM (Int, Int)
+readCanvasSizeM :: EvalM (Int, Int)
 readCanvasSizeM = do
-  env <- get
-  case Map.lookup "canvasSize" env of
-    Just (VPair x y) -> pure (floor x, floor y)
-    Nothing -> throwError $ Unbound "Symbol not defined: canvasSize"
+  result <- lookupVarM symCanvasSize
+  case result of
+    (VPair x y) -> pure (floor x, floor y)
+    _ -> throwError $ Internal "'canvasSize' is not a pair of f64"
 
-readRotM :: StmtM Double
+readRotM :: EvalM Double
 readRotM = do
-  env <- get
-  case Map.lookup "rot" env of
-    Just (VScalar r) -> pure r
-    Nothing -> throwError $ Unbound "Variable not defined: rot"
+  result <- lookupVarM symRot
+  case result of
+    (VScalar r) -> pure r
+    _ -> throwError $ Internal "'rot' is not a f64"
 
 data DrawParams = DrawParams
   { origin :: (Double, Double),
@@ -110,7 +151,7 @@ data DrawParams = DrawParams
     canvasSize :: (Int, Int)
   }
 
-readDrawParams :: StmtM DrawParams
+readDrawParams :: EvalM DrawParams
 readDrawParams = do
   origin <- readOriginM
   scale <- readScaleM
@@ -130,8 +171,8 @@ transformPoint param (x, y) =
     x' = x * sx
     y' = y * sy
     -- 旋转变换
-    x'' =   x' * cos theta + y' * sin theta
-    y'' = - x' * sin theta + y' * cos theta
+    x'' = x' * cos theta + y' * sin theta
+    y'' = -x' * sin theta + y' * cos theta
     -- 平移变换
     x''' = round $ ox + x''
     y''' = round $ oy + y''
@@ -139,15 +180,15 @@ transformPoint param (x, y) =
 
 data Builtin = Builtin
   { arity :: Int,
-    run :: [Value] -> StmtM Value
+    run :: [Value] -> EvalM Value
   }
 
-unary :: (Value -> StmtM Value) -> Builtin
+unary :: (Value -> EvalM Value) -> Builtin
 unary f = Builtin 1 $ \case
   [v] -> f v
   arg -> throwError $ ArityErr "Wrong number of arguments" 1 (length arg)
 
-binary :: (Value -> Value -> StmtM Value) -> Builtin
+binary :: (Value -> Value -> EvalM Value) -> Builtin
 binary f = Builtin 2 $ \case
   [x, y] -> f x y
   arg -> throwError $ ArityErr "Wrong number of arguments" 2 (length arg)
@@ -162,7 +203,7 @@ wrapUnaryMathFunction f = unary (either throwError pure . g)
 wrapBinaryMathFunction :: (Double -> Double -> Double) -> Builtin
 wrapBinaryMathFunction f = binary g
   where
-    g :: Value -> Value -> StmtM Value
+    g :: Value -> Value -> EvalM Value
     g x y = do
       x' <- asDoubleM x
       y' <- asDoubleM y
@@ -173,7 +214,7 @@ builtinPrint = unary $ \x -> do
   liftIO $ putStrLn $ show x
   pure VUnit
 
-withImage :: (MutableImage RealWorld PixelRGB8 -> StmtM Value) -> StmtM Value
+withImage :: (MutableImage RealWorld PixelRGB8 -> EvalM Value) -> EvalM Value
 withImage k = do
   Canvas ref <- ask
   mi <- liftIO (readIORef ref)
@@ -188,7 +229,7 @@ withImage k = do
 builtinDraw :: Builtin
 builtinDraw = binary draw
   where
-    draw :: Value -> Value -> StmtM Value
+    draw :: Value -> Value -> EvalM Value
     draw x y = do
       p <- readDrawParams
       x' <- asDoubleM x
@@ -221,15 +262,10 @@ builtins =
       ("draw", builtinDraw)
     ]
 
-evalExprM :: A.Expr -> StmtM Value
-evalExprM (A.Var name) = do
-  env <- get
-  case Map.lookup name env of
-    Just v -> pure v
-    Nothing -> throwError $ Unbound ("Symbol not defined: " ++ name)
+evalExprM :: A.Expr -> EvalM Value
+evalExprM (A.Var name) = lookupVarM name
 evalExprM (A.Imm v) = pure $ VScalar v
 evalExprM (A.Pair x y) = do
-  env <- get
   x' <- evalExprM x >>= asDoubleM
   y' <- evalExprM y >>= asDoubleM
   pure $ VPair x' y'
@@ -248,11 +284,30 @@ evalExprM (A.BinOp op lhs rhs) = do
     A.Div -> pure . VScalar $ lhs' / rhs'
     A.Pow -> pure . VScalar $ lhs' ** rhs'
 evalExprM (A.Call fname args) = do
-  f <- maybe (throwError (UnknownFn fname)) pure (Map.lookup fname builtins)
-  a <- mapM evalExprM args
-  run f a
+  isUserDefined <- gets $ has (functions . ix fname)
+  if isUserDefined then callUserDefined else callBuiltin
+  where
+    traversal = has (functions . ix fname)
+    callUserDefined = do
+      closure <- gets (^?! functions . ix fname)
+      case closure of
+        VClosure c -> do
+          argv <- mapM evalExprM args
+          let locals = Map.fromList $ zip (c ^. clParams) argv
+          variables %= (locals :)
+          flow <- evalStmtM $ c ^. clBody
+          variables %= drop 1
+          case flow of
+            Normal -> pure VUnit
+            Return value -> pure value
+            _ -> throwError $ Internal "function not returned"
+        otherwise -> throwError . Internal $ "not a function: " ++ fname
+    callBuiltin = do
+      f <- maybe (throwError (UnknownFn fname)) pure (Map.lookup fname builtins)
+      a <- mapM evalExprM args
+      run f a
 
-evalBoolExprM :: A.BoolExpr -> StmtM Bool
+evalBoolExprM :: A.BoolExpr -> EvalM Bool
 evalBoolExprM (A.BoolAtom x) = pure x
 evalBoolExprM (A.Cmp op lhs rhs) = do
   lhs' <- evalExprM lhs >>= asDoubleM
@@ -275,11 +330,17 @@ evalBoolExprM (A.Nonzero expr) = do
   value <- evalExprM expr >>= asDoubleM
   pure $ value /= 0
 
-evalStmtM :: A.Stmt -> StmtM Flow
+evalStmtM :: A.Stmt -> EvalM Flow
 evalStmtM (A.Assign var expr) = do
-  env <- get
   value <- evalExprM expr
-  modify $ Map.insert var value
+  modify' $ assignVar var value
+  pure Normal
+evalStmtM (A.Def fname args body) = do
+  if Map.member fname builtins
+    then
+      throwError . RuntimeError $ "Cannot override builtin function: " ++ fname
+    else
+      functions %= Map.insert fname (VClosure $ Closure args body)
   pure Normal
 evalStmtM (A.For var start end step body) = do
   vstart <- evalExprM start >>= asDoubleM
@@ -287,12 +348,12 @@ evalStmtM (A.For var start end step body) = do
   vstep <- evalExprM step >>= asDoubleM
   loop vstart vend vstep
   where
-    loop :: Double -> Double -> Double -> StmtM Flow
+    loop :: Double -> Double -> Double -> EvalM Flow
     loop v vend vstep
       | vstep > 0 && v >= vend = pure Normal
       | vstep < 0 && v <= vend = pure Normal
       | otherwise = do
-          modify $ Map.insert var (VScalar v)
+          modify' $ assignVar var (VScalar v)
           flow <- evalStmtM body
           case flow of
             Break -> pure Break
@@ -308,20 +369,17 @@ evalStmtM (A.Block stmts) = it stmts
       case f of
         Normal -> it rest
         _ -> pure f
-evalStmtM A.Break = pure Break
-evalStmtM (A.Return expr) = do
-  value <- evalExprM expr
-  pure $ Return value
-evalStmtM (A.AExp expr) = do
-  evalExprM expr
-  pure Normal
-evalStmtM _ = pure Normal
+evalStmtM (A.Break) = pure Break
+evalStmtM (A.Return expr) = evalExprM expr >>= pure . Return
+evalStmtM (A.AExp expr) = evalExprM expr >> pure Normal
+evalStmtM (A.BExp expr) = evalBoolExprM expr >> pure Normal
+evalStmtM (A.Void) = pure Normal
 
-runProgram :: [A.Stmt] -> IO (Either Error Env)
-runProgram stmts = do
+runProgram :: FilePath -> [A.Stmt] -> IO (Either Error EvalState)
+runProgram path stmts = do
   ref <- newIORef Nothing
   let canvas = Canvas ref
   let ss = simplify stmts
-  let prog = mapM_ evalStmtM ss >> (saveImage "canvas.png")
-  result <- runExceptT (runStateT (runReaderT prog canvas) createEnv)
+  let prog = mapM_ evalStmtM ss >> (saveImage path)
+  result <- runExceptT (runStateT (runReaderT prog canvas) emptyState)
   pure (fmap snd result)

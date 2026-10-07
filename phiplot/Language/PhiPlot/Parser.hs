@@ -138,13 +138,15 @@ assign :: Parser Stmt
 assign = do
   k <- identifier
   (reservedOp "=") <|> try (reserved "is") <?> "assign statemenet"
-  Assign k <$> aexpr <* semicolon
+  v <- aexpr <|> try pair
+  semicolon
+  pure $ Assign k v
 
 defun :: Parser Stmt
 defun = do
   reserved "def"
   name <- identifier
-  args <- parens $ commaSep variable
+  args <- parens $ commaSep identifier
   Def name args <$> block
 
 returnStmt :: Parser Stmt

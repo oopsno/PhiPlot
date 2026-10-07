@@ -73,7 +73,7 @@ data BoolExpr
 
 data Stmt
   = Assign {dst :: Name, value :: Expr}
-  | Def {fname :: Name, args :: [Expr], body :: Stmt}
+  | Def {fname :: Name, args :: [Name], body :: Stmt}
   | For {var :: Name, start :: Expr, end :: Expr, step :: Expr, body :: Stmt}
   | If {condition :: BoolExpr, thenBody :: Stmt, elseBody :: Stmt}
   | Block [Stmt]

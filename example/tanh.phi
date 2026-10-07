@@ -1,0 +1,21 @@
+def sinh(x) {
+    return (exp(x) - exp(-x)) / 2;
+}
+
+def cosh(x) {
+    return (exp(x) + exp(-x)) / 2;
+}
+
+def tanh(x) {
+    m = exp(x);
+    n = exp(-x);
+    return (m - n) / (m + n);
+}
+
+scale is (128, 128);
+origin is (512, 512);
+for x from -4 to 4 step 1/128 {
+    draw(x, -sinh(x));
+    draw(x, -cosh(x));
+    draw(x, -tanh(x));
+}
